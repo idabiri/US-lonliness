@@ -45,33 +45,42 @@ atp_final <- atp_final |>
 # Rename demographic names
 # Create a index for mom, dad, and other family members. If they
 # got support from any of these (answered 1-2),  +1, else 0. Make the variable 
-# EMOSUPP_FAM,as general family support variable.
+# EMOSUPP_FAM,as general family support variable (multicollinearity).
+
+fam <- c("EMOSUPP_MOM", "EMOSUPP_DAD", "EMOSUPP_OTHFAM")
+
 
 atp_final <- atp_final |> 
   mutate(
-    EMOSUPP_FAM = (EMOSUPP_MOM %in% 1:2) +
-      (EMOSUPP_DAD %in% 1:2) + (EMOSUPP_OTHFAM %in% 1:2),
+    EMOSUPP_FAM = ifelse(if_all(all_of(fam_items), ~ is.na(.x) | .x == 6),
+                         NA,
+                         rowSums(across(all_of(fam_items), ~ .x %in% 1:2))),
     
-    F_AGECAT = case_when(F_AGECAT == 1 ~ "18-29",
-                         F_AGECAT == 2 ~ "30-49",
-                         F_AGECAT == 3 ~ "50-64",
-                         F_AGECAT == 4 ~ "65+"),
+    F_AGECAT = factor(F_AGECAT, levels = c(1, 2, 3, 4), 
+                      labels = c("18-29", "30-49", "50-64", "65+")),
     
-    F_RACETHNMOD = case_when(F_RACETHNMOD == 1 ~ "White",
-                             F_RACETHNMOD == 2 ~ "Black",
-                             F_RACETHNMOD == 3 ~ "Hispanic",
-                             F_RACETHNMOD == 4 ~ "Other",
-                             F_RACETHNMOD == 5 ~ "Asian"),
+    F_RACETHNMOD = factor(F_RACETHNMOD, levels = c(1, 2, 3, 4, 5), 
+                          labels = c("White", "Black", "Hispanic", "Other", "Asian")),
     
-    F_GENDER = case_when(F_GENDER == 1 ~ "Man",
-                         F_GENDER == 2 ~ "Woman",
-                         F_GENDER == 3 ~ "Other"),
+    F_GENDER = factor(F_GENDER, levels = c(1, 2, 3), 
+                      labels = c("Man", "Woman", "Other")),
     
-    F_CREGION = case_when(F_CREGION == 1 ~ "Northeast",
-                          F_CREGION == 2 ~ "Midwest",
-                          F_CREGION == 3 ~ "South",
-                          F_CREGION == 4 ~ "West")
-  )
+    F_CREGION = factor(F_CREGION, levels = c(1, 2, 3, 4), 
+                       labels = c("Northeast", "Midwest", "South", "West")),
+    
+    COMMFRI_IRL = case_when(
+      CLOSE_FRIEND == 3 ~ 7, # No close friends
+      TRUE ~ COMMFRI_IRL),
+    
+    LONELY_BINARY = case_when(FEEL_LONELY %in% 1:2 ~ 1, FEEL_LONELY %in% 3:5 ~ 0),
+    
+    FRIEND_SUPP = case_when(EMOSUPP_FRIEND %in% 1:2 ~ 1, EMOSUPP_FRIEND %in% 3:5 ~ 0),
+    
+    PROF_SUPP = case_when(EMOSUPP_PROF %in% 1:2 ~ 1, EMOSUPP_PROF %in% 3:5 ~ 0),
+    
+    SPOUSE_SUPP = case_when(EMOSUPP_SPOUSE %in% 1:2 ~ 1, EMOSUPP_SPOUSE %in% 3:5 ~ 0)
+    ) |> 
+  glimpse()
 
 
 # Import the weights that will be used throughout analysis
@@ -169,6 +178,38 @@ round(svytable(~EMOSUPP_SPOUSE + F_CREGION, design = weight) |> prop.table(margi
 round(svytable(~EMOSUPP_SPOUSE + F_GENDER, design = weight) |> prop.table(margin = 2) * 100, digits = 1)
 
 
-
-
 # ------------ Descriptive Visualizations ------------
+
+# One function, reused for every outcome x group combination
+by_group <- function(outcome, group) {
+  svyby(as.formula(paste0("~", outcome)), as.formula(paste0("~", group)),
+        weight, svymean, na.rm = TRUE)
+}
+
+by_group("LONELY_BINARY", "F_AGECAT")
+by_group("LONELY_BINARY", "F_GENDER")
+by_group("LONELY_BINARY", "F_RACETHNMOD")
+by_group("LONELY_BINARY", "F_CREGION")
+
+by_group("FRIEND_SUPP", "F_AGECAT")
+by_group("FRIEND_SUPP", "F_GENDER")
+by_group("FRIEND_SUPP", "F_RACETHNMOD")
+by_group("FRIEND_SUPP", "F_CREGION")
+
+by_group("PROF_SUPP", "F_AGECAT")
+by_group("PROF_SUPP", "F_GENDER")
+by_group("PROF_SUPP", "F_RACETHNMOD")
+by_group("PROF_SUPP", "F_CREGION")
+
+by_group("SPOUSE_SUPP", "F_AGECAT")
+by_group("SPOUSE_SUPP", "F_GENDER")
+by_group("SPOUSE_SUPP", "F_RACETHNMOD")
+by_group("SPOUSE_SUPP", "F_CREGION")
+
+by_group("EMOSUPP_FAM", "F_AGECAT")
+by_group("EMOSUPP_FAM", "F_GENDER")
+by_group("EMOSUPP_FAM", "F_RACETHNMOD")
+by_group("EMOSUPP_FAM", "F_CREGION")
+
+# Bar charts
+
